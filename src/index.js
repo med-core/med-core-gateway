@@ -1,5 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
+import cors from "cors"
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { verifyToken } from "./middlewares/verifyToken.js";
 import { requireRole } from "./middlewares/requireRole.js";
@@ -7,6 +8,16 @@ import { requireRole } from "./middlewares/requireRole.js";
 dotenv.config();
 
 const app = express();
+// Middleware CORS
+app.use(
+  cors({
+    origin: [
+      'http://localhost:5173'
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true,
+  })
+);
 const PORT = process.env.PORT || 3000;
 
 // -------------------
@@ -33,11 +44,13 @@ app.use("/api/users",
   createProxyMiddleware({
     target: process.env.USER_SERVICE_URL,
     changeOrigin: true,
-    pathRewrite: (path, req) => {
-      return `/api/v1/user${path}`;
+  pathRewrite: (path, req) => {
+    if (path === '/health') {
+      return '/health';
     }
-  })
-);
+    return `/api/v1/users${path}`;
+  }
+}));
 
 // Patients → ADMINISTRADOR o MEDICO
 app.use("/api/patients",
@@ -46,11 +59,13 @@ app.use("/api/patients",
   createProxyMiddleware({
     target: process.env.PATIENT_SERVICE_URL,
     changeOrigin: true,
-    pathRewrite: (path, req) => {
-      return `/api/v1/patient${path}`;
+  pathRewrite: (path, req) => {
+    if (path === '/health') {
+      return '/health';
     }
-  })
-);
+    return `/api/v1/patients${path}`;
+  }
+}));
 
 // Diagnostics → PACIENTE, MEDICO o ADMINISTRADOR
 app.use("/api/diagnostics",
@@ -59,11 +74,13 @@ app.use("/api/diagnostics",
   createProxyMiddleware({
     target: process.env.DIAGNOSTIC_SERVICE_URL,
     changeOrigin: true,
-    pathRewrite: (path, req) => {
-      return `/api/v1/diagnostic${path}`;
+  pathRewrite: (path, req) => {
+    if (path === '/health') {
+      return '/health';
     }
-  })
-);
+    return `/api/v1/diagnostics${path}`;
+  }
+}));
 
 // -------------------
 app.get("/", (req, res) => {
