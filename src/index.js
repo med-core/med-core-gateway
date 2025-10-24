@@ -19,7 +19,6 @@ app.use(
   })
 );
 const PORT = process.env.PORT || 3000;
-
 // -------------------
 // PROXIES A SERVICIOS
 // -------------------
@@ -66,21 +65,24 @@ app.use("/api/patients",
     return `/api/v1/patients${path}`;
   }
 }));
-
-// Diagnostics → PACIENTE, MEDICO o ADMINISTRADOR
-app.use("/api/diagnostics",
-  verifyToken,
-  requireRole("PACIENTE", "MEDICO", "ADMINISTRADOR"),
+app.use("/api/patients/:patientId/diagnostics",
   createProxyMiddleware({
     target: process.env.DIAGNOSTIC_SERVICE_URL,
     changeOrigin: true,
-  pathRewrite: (path, req) => {
-    if (path === '/health') {
-      return '/health';
+    pathRewrite: path => path.replace("/api/patients", "/api/v1/patients"),
+    onProxyReq: (proxyReq, req) => {
+      console.log("GATEWAY -> Headers antes de enviar al microservicio:");
+      console.log(req.headers); // Ver el Authorization y user
+      if (req.headers.authorization) {
+        proxyReq.setHeader("Authorization", req.headers.authorization);
+      }
+      if (req.user) {
+        console.log("GATEWAY -> Pasando req.user al microservicio:", req.user);
+        proxyReq.setHeader("x-user", JSON.stringify(req.user));
+      }
     }
-    return `/api/v1/diagnostics${path}`;
-  }
-}));
+  })
+);
 
 // -------------------
 app.get("/", (req, res) => {
