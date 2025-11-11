@@ -51,6 +51,27 @@ app.use("/api/users",
   }
 }));
 
+// ==================== DIAGNOSTIC SERVICE ====================
+app.use("/api/diagnostics", verifyToken,
+  createProxyMiddleware({
+    target: process.env.DIAGNOSTIC_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: (path, req) => {
+      if (path === '/health') return '/health';
+      return `/api/v1/diagnostics${path}`;
+    },
+    onProxyReq: (proxyReq, req) => {
+      // Pasar token y usuario autenticado
+      if (req.headers.authorization) {
+        proxyReq.setHeader("Authorization", req.headers.authorization);
+      }
+      if (req.user) {
+        proxyReq.setHeader("x-user", JSON.stringify(req.user));
+      }
+    }
+  })
+);
+
 // Patients → ADMINISTRADOR o MEDICO
 app.use("/api/patients",
   verifyToken,
@@ -83,6 +104,84 @@ app.use("/api/patients/:patientId/diagnostics",
     }
   })
 );
+
+// DEPARTMENTS → ADMIN
+app.use("/api/departments", verifyToken, requireRole("ADMINISTRADOR"),
+  createProxyMiddleware({
+    target: process.env.DEPARTMENT_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: {
+      '^/api/departments': '/api/v1/departments',
+    }
+  })
+);
+
+// SPECIALIZATIONS → ADMIN
+app.use("/api/specializations", verifyToken, requireRole("ADMINISTRADOR"),
+  createProxyMiddleware({
+    target: process.env.SPECIALIZATION_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: {
+      '^/api/specializations': '/api/v1/specializations',
+    }
+  })
+);
+
+// DOCTORS
+app.use("/api/doctors", verifyToken, requireRole("ADMINISTRADOR", "MEDICO"),
+  createProxyMiddleware({
+    target: process.env.DOCTOR_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: (path, req) => {
+      if (path === '/health') return '/health';
+      return `/api/v1/doctors${path}`;
+    }
+  })
+);
+
+// NURSES
+app.use("/api/nurses", verifyToken, requireRole("ADMINISTRADOR", "ENFERMERO"),
+  createProxyMiddleware({
+    target: process.env.NURSE_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: (path, req) => {
+      if (path === '/health') return '/health';
+      return `/api/v1/nurses${path}`;
+    }
+  })
+);
+
+// APPOINTMENTS
+app.use("/api/appointments", verifyToken,
+  createProxyMiddleware({
+    target: process.env.APPOINTMENT_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: (path, req) => {
+      if (path === '/health') return '/health';
+      return `/api/v1/appointments${path}`;
+    },
+    onProxyReq: (proxyReq, req) => {
+      if (req.user) {
+        proxyReq.setHeader("x-user", JSON.stringify(req.user));
+      }
+    }
+  })
+);
+
+// QUEUE + WEBSOCKET
+app.use("/api/queue", createProxyMiddleware({
+  target: process.env.QUEUE_SERVICE_URL,
+  changeOrigin: true,
+  ws: true,
+  pathRewrite: (path, req) => path === '/health' ? '/health' : path
+}));
+
+app.use("/socket.io", createProxyMiddleware({
+  target: process.env.QUEUE_SERVICE_URL,
+  changeOrigin: true,
+  ws: true,
+  pathRewrite: { '^/socket.io': '/socket.io' }
+}));
 
 // -------------------
 app.get("/", (req, res) => {
