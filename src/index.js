@@ -39,7 +39,7 @@ app.use("/api/auth", createProxyMiddleware({
 // Users → Solo ADMINISTRADOR
 app.use("/api/users",
   verifyToken,
-  requireRole("ADMINISTRADOR"),
+  requireRole(true, "ADMINISTRADOR", "PACIENTE"),
   createProxyMiddleware({
     target: process.env.USER_SERVICE_URL,
     changeOrigin: true,
@@ -72,21 +72,10 @@ app.use("/api/diagnostics", verifyToken,
   })
 );
 
-// Patients → ADMINISTRADOR o MEDICO
-app.use("/api/patients",
-  verifyToken,
-  requireRole("ADMINISTRADOR", "MEDICO"),
-  createProxyMiddleware({
-    target: process.env.PATIENT_SERVICE_URL,
-    changeOrigin: true,
-  pathRewrite: (path, req) => {
-    if (path === '/health') {
-      return '/health';
-    }
-    return `/api/v1/patients${path}`;
-  }
-}));
+
 app.use("/api/patients/:patientId/diagnostics",
+  verifyToken,
+  requireRole(true, "ADMINISTRADOR", "MEDICO", "PACIENTE"),
   createProxyMiddleware({
     target: process.env.DIAGNOSTIC_SERVICE_URL,
     changeOrigin: true,
@@ -105,8 +94,31 @@ app.use("/api/patients/:patientId/diagnostics",
   })
 );
 
+// Patients → ADMINISTRADOR o MEDICO
+app.use("/api/patients",
+  verifyToken,
+  requireRole(true, "ADMINISTRADOR", "MEDICO", "PACIENTE"),
+  createProxyMiddleware({
+    target: process.env.PATIENT_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: (path, req) => {
+      if (path === '/health') return '/health';
+      return `/api/v1/patients${path}`;
+    },
+    onProxyReq: (proxyReq, req) => { 
+      // Propagar el token original
+      if (req.headers.authorization) {
+        proxyReq.setHeader("Authorization", req.headers.authorization);
+      }
+      // Propagar la carga útil del usuario
+      if (req.user) {
+        proxyReq.setHeader("x-user", JSON.stringify(req.user));
+      }
+    }
+  }));
+
 // DEPARTMENTS → ADMIN
-app.use("/api/departments", verifyToken, requireRole("ADMINISTRADOR"),
+app.use("/api/departments", verifyToken, requireRole(true, "ADMINISTRADOR"),
   createProxyMiddleware({
     target: process.env.DEPARTMENT_SERVICE_URL,
     changeOrigin: true,
@@ -117,7 +129,7 @@ app.use("/api/departments", verifyToken, requireRole("ADMINISTRADOR"),
 );
 
 // SPECIALIZATIONS → ADMIN
-app.use("/api/specializations", verifyToken, requireRole("ADMINISTRADOR"),
+app.use("/api/specializations", verifyToken, requireRole(true, "ADMINISTRADOR"),
   createProxyMiddleware({
     target: process.env.SPECIALIZATION_SERVICE_URL,
     changeOrigin: true,
@@ -128,7 +140,7 @@ app.use("/api/specializations", verifyToken, requireRole("ADMINISTRADOR"),
 );
 
 // DOCTORS
-app.use("/api/doctors", verifyToken, requireRole("ADMINISTRADOR", "MEDICO"),
+app.use("/api/doctors", verifyToken, requireRole(true, "ADMINISTRADOR", "MEDICO"),
   createProxyMiddleware({
     target: process.env.DOCTOR_SERVICE_URL,
     changeOrigin: true,
@@ -140,7 +152,7 @@ app.use("/api/doctors", verifyToken, requireRole("ADMINISTRADOR", "MEDICO"),
 );
 
 // NURSES
-app.use("/api/nurses", verifyToken, requireRole("ADMINISTRADOR", "ENFERMERO"),
+app.use("/api/nurses", verifyToken, requireRole(true, "ADMINISTRADOR", "ENFERMERO"),
   createProxyMiddleware({
     target: process.env.NURSE_SERVICE_URL,
     changeOrigin: true,
